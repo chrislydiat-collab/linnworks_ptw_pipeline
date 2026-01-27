@@ -2,6 +2,7 @@ TRUNCATE TABLE [linnworks].[lw].[OrderItem_full];
 
 ;WITH ParentItems AS (
     SELECT
+        prodortest.SubSource,
         parent.OrderId,
         parent.ItemId AS ParentItemId,
         parent.Title AS ParentTitle,
@@ -20,6 +21,10 @@ TRUNCATE TABLE [linnworks].[lw].[OrderItem_full];
         parent.ItemSource AS ParentItemSource,
         parent.StockItemId AS ParentStockItemId
     FROM [linnworks].[staging].[_airbyte_raw_processed_order_details] t
+    CROSS APPLY OPENJSON(t.GeneralInfo)
+        WITH (
+            SubSource NVARCHAR(255)
+        ) AS prodortest
     CROSS APPLY OPENJSON(t.Items)
         WITH (
             OrderId UNIQUEIDENTIFIER,
@@ -47,7 +52,8 @@ TRUNCATE TABLE [linnworks].[lw].[OrderItem_full];
 ),
 SubItems AS (
     SELECT
-        p.OrderId,
+    	p.SubSource,
+    	p.OrderId,
         p.ParentItemId,
         p.ParentTitle,
         p.ParentSKU,
@@ -160,4 +166,6 @@ SELECT
     BinRack AS SubItemBinRack,
     ItemSource AS SubItemItemSource,
     StockItemId AS SubItemStockItemId
-FROM SubItems;
+FROM SubItems
+
+WHERE SubSource NOT IN ('Staging', 'testorder', 'RMA', 'StagingCF');

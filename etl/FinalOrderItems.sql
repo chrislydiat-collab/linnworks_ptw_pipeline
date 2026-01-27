@@ -1,3 +1,6 @@
+DELETE FROM [linnworks].[lw].[final_orderitems]
+WHERE source = 'linnworks';
+
 INSERT INTO [linnworks].[lw].[final_orderitems] (
     Final_sku,
     final_quantity,
@@ -17,51 +20,52 @@ SELECT DISTINCT
         WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' 
             THEN OI.SubItemSKU
         ELSE OI.ParentSKU
-    END AS Final_sku,
-
+    END AS final_sku,
+    
     CASE 
-        WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' 
-             AND OI.SubItemQty <> 0
+        WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' AND OI.SubItemQty <> 0
             THEN OI.SubItemQty
         ELSE OI.ParentQty
-    END AS Final_quantity,
-
+    END AS final_quantity,
+    
     CASE 
-        WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' 
-             AND OI.SubItemSellPrice <> 0
+        WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' AND OI.SubItemSellPrice <> 0
             THEN OI.SubItemSellPrice
         ELSE OI.ParentSellPrice
-    END AS Final_price,
-
+    END AS final_price,
+    
     CASE 
-        WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' 
-             AND OI.SubItemUnitCost <> 0
+        WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' AND OI.SubItemUnitCost <> 0
             THEN OI.SubItemUnitCost
         ELSE OI.ParentUnitCost
-    END AS Final_cost,
-
-    CASE 
-        WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' 
-             AND OI.SubItemSellPrice <> 0 AND OI.SubItemQty <> 0
-            THEN OI.SubItemSellPrice * OI.SubItemQty
-        ELSE OI.ParentSellPrice * OI.ParentQty
-    END AS TotalFinalPrice,
-
-    CASE 
-        WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' 
-             AND OI.SubItemUnitCost <> 0 AND OI.SubItemQty <> 0
-            THEN OI.SubItemUnitCost * OI.SubItemQty
-        ELSE OI.ParentUnitCost * OI.ParentQty
-    END AS TotalFinalCost,
-
-    O.dProcessedOn AS Final_date,
-
+    END AS final_cost,
+    
+    (
+        CASE 
+            WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' 
+                 AND OI.SubItemSellPrice <> 0 AND OI.SubItemQty <> 0
+                THEN OI.SubItemSellPrice * OI.SubItemQty
+            ELSE OI.ParentSellPrice * OI.ParentQty
+        END
+    ) AS TotalFinalPrice,
+    
+    (
+        CASE 
+            WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' 
+                 AND OI.SubItemUnitCost <> 0 AND OI.SubItemQty <> 0
+                THEN OI.SubItemUnitCost * OI.SubItemQty
+            ELSE OI.ParentUnitCost * OI.ParentQty
+        END
+    ) AS TotalFinalCost,
+    
+    O.dProcessedOn AS final_date,
+    
     CASE
         WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' 
             THEN OI.ParentSKU
         ELSE NULL
-    END AS KitSKU,
-
+    END AS kitsku,
+    
     'linnworks' AS source,
     OI.ParentTitle,
     OI.OrderId,

@@ -55,7 +55,7 @@ SELECT
     data.cFullName,
     data.cEmailAddress,
     REPLACE(data.cPostCode, CHAR(9), '') AS cPostcode,
-    TRY_CAST(data.dReceivedDate AS DATETIME),
+    TRY_CAST(data3.dReceivedDate AS DATETIME),
     TRY_CAST(JSON_VALUE(CAST(data2.GeneralInfo AS NVARCHAR(MAX)), '$.DespatchByDate') AS DATETIME),
     TRY_CAST(data3.dProcessedOn AS DATETIME),
     data.fPostageCost,

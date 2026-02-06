@@ -29,8 +29,9 @@ SELECT
     NULL,                                                                    
     NULL,                                                                    
     'maginus',                                                               
-    TRY_CONVERT(DATETIME, CAST(fs.DateKey AS CHAR(8)), 112)                  
+    fs.Despatch_Date                 
 FROM [MaginusOMS].[dbo].[fct_Sales] fs
 LEFT JOIN corder fso ON CAST(fs.Sales_Order_No AS VARCHAR(50)) = fso.OrderKey
-INNER JOIN [MaginusOMS].[dbo].[Dim_Product] dp ON fs.ProductKey = dp.ProductKey;
+INNER JOIN [MaginusOMS].[dbo].[Dim_Product] dp ON fs.ProductKey = dp.ProductKey
+WHERE fs.Despatch_Date >= '2020-01-01';
 GO

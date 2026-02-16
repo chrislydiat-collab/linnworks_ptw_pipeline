@@ -1,5 +1,4 @@
 TRUNCATE TABLE [linnworks].[lw].[OrderItem_full];
-
 ;WITH ParentItems AS (
     SELECT
         prodortest.SubSource,
@@ -9,8 +8,8 @@ TRUNCATE TABLE [linnworks].[lw].[OrderItem_full];
         parent.SKU AS ParentSKU,
         parent.Quantity AS ParentQty,
         TRY_CONVERT(DECIMAL(18,4), parent.DespatchStockUnitCost) AS ParentUnitCost,
-        TRY_CONVERT(DECIMAL(18,4), parent.PricePerUnit) 
-            - (TRY_CONVERT(DECIMAL(18,4), parent.DiscountValue) / NULLIF(parent.Quantity, 0)) AS PricePerUnit,
+        TRY_CONVERT(DECIMAL(18,4), parent.PricePerUnit) - (TRY_CONVERT(DECIMAL(18,4), parent.DiscountValue) / NULLIF(parent.Quantity, 0)) AS PricePerUnit,
+        TRY_CONVERT(DECIMAL(18,4), parent.DiscountValue) / NULLIF(parent.Quantity, 0) AS DiscountPerUnit,
         TRY_CONVERT(DECIMAL(18,4), parent.Tax) AS ParentTax,
         TRY_CONVERT(DECIMAL(5,2), parent.TaxRate) AS ParentTaxRate,
         TRY_CONVERT(DECIMAL(18,4), parent.CostIncTax) AS ParentTotalIncTax,
@@ -60,6 +59,7 @@ SubItems AS (
         p.ParentQty,
         p.ParentUnitCost,
         p.PricePerUnit AS ParentSellPrice,
+        p.DiscountPerUnit AS ParentDiscountPerUnit,
         p.ParentTax,
         p.ParentTaxRate,
         p.ParentTotalIncTax,
@@ -73,8 +73,8 @@ SubItems AS (
         sub.SKU,
         sub.Quantity,
         TRY_CONVERT(DECIMAL(18,4), sub.UnitCost) AS UnitCost,
-        TRY_CONVERT(DECIMAL(18,4), sub.PricePerUnit)
-            - (TRY_CONVERT(DECIMAL(18,4), sub.DiscountValue) / NULLIF(sub.Quantity, 0)) AS PricePerUnit,
+        TRY_CONVERT(DECIMAL(18,4), sub.PricePerUnit) - (TRY_CONVERT(DECIMAL(18,4), sub.DiscountValue) / NULLIF(sub.Quantity, 0)) AS PricePerUnit,
+        TRY_CONVERT(DECIMAL(18,4), sub.DiscountValue) / NULLIF(sub.Quantity, 0) AS DiscountPerUnit,
         TRY_CONVERT(DECIMAL(18,4), sub.Tax) AS Tax,
         TRY_CONVERT(DECIMAL(5,2), sub.TaxRate) AS TaxRate,
         TRY_CONVERT(DECIMAL(18,4), sub.CostIncTax) AS CostIncTax,
@@ -115,6 +115,7 @@ INSERT INTO [linnworks].[lw].[OrderItem_full] (
     ParentQty,
     ParentUnitCost,
     ParentSellPrice,
+    ParentDiscountPerUnit,
     ParentTax,
     ParentTaxRate,
     ParentTotalIncTax,
@@ -129,6 +130,7 @@ INSERT INTO [linnworks].[lw].[OrderItem_full] (
     SubItemQty,
     SubItemUnitCost,
     SubItemSellPrice,
+    SubItemDiscountPerUnit,
     SubItemTax,
     SubItemTaxRate,
     SubItemTotalIncTax,
@@ -145,6 +147,7 @@ SELECT
     ParentQty,
     ParentUnitCost,
     ParentSellPrice,
+    ParentDiscountPerUnit,
     ParentTax,
     ParentTaxRate,
     ParentTotalIncTax,
@@ -159,6 +162,7 @@ SELECT
     Quantity AS SubItemQty,
     UnitCost AS SubItemUnitCost,
     PricePerUnit AS SubItemSellPrice,
+    DiscountPerUnit AS SubItemDiscount,
     Tax AS SubItemTax,
     TaxRate AS SubItemTaxRate,
     CostIncTax AS SubItemTotalIncTax,
@@ -167,5 +171,4 @@ SELECT
     ItemSource AS SubItemItemSource,
     StockItemId AS SubItemStockItemId
 FROM SubItems
-
 WHERE SubSource NOT IN ('Staging', 'testorder', 'RMA', 'StagingCF');

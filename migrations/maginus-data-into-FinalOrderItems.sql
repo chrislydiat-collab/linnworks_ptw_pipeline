@@ -15,8 +15,10 @@ INSERT INTO [linnworks].[lw].[final_orderitems] (
     final_quantity,
     final_price,
     final_cost,
+    DiscountPerUnit,
     TotalFinalPrice,
     TotalFinalCost,
+    TotalDiscount,
     order_date,
     final_date,
     kitsku,
@@ -30,11 +32,16 @@ SELECT
     pdi.ACTUAL_QUANTITY AS final_quantity,
     (CASE 
          WHEN pdi.ACTUAL_QUANTITY = 0 THEN 0 
-         ELSE (pdi.UNIT_PRICE - (pdi.VAT_AMOUNT / pdi.ACTUAL_QUANTITY))
+         ELSE (pdi.UNIT_PRICE - (pdi.VAT_AMOUNT / pdi.ACTUAL_QUANTITY)) * (100 - pdi.DISCOUNT_PERC) / 100
      END) AS final_price,
     pdi.UNIT_COST AS final_cost,
-    (pdi.UNIT_PRICE * pdi.ACTUAL_QUANTITY) - pdi.VAT_AMOUNT AS TotalFinalPrice,
+    (CASE 
+         WHEN pdi.ACTUAL_QUANTITY = 0 THEN 0 
+         ELSE (pdi.UNIT_PRICE - (pdi.VAT_AMOUNT / pdi.ACTUAL_QUANTITY)) * (pdi.DISCOUNT_PERC) / 100
+     END) AS DiscountPerUnit,
+    ((pdi.UNIT_PRICE * pdi.ACTUAL_QUANTITY) - pdi.VAT_AMOUNT) * (100 - pdi.DISCOUNT_PERC) / 100 AS TotalFinalPrice,
     (pdi.UNIT_COST * pdi.ACTUAL_QUANTITY) AS TotalFinalCost,
+    ((pdi.UNIT_PRICE * pdi.ACTUAL_QUANTITY) - pdi.VAT_AMOUNT) * (pdi.DISCOUNT_PERC) / 100 AS TotalDiscount,
     bodge.order_date AS order_date,
     (CASE 
 	    WHEN CAST(bodge.order_date AS DATE) > '2023-11-24' AND bodge.order_date > bodge.Despatch_Date

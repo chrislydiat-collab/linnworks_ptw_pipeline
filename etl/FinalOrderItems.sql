@@ -1,15 +1,16 @@
 -- Step 1: Clear existing data for the source
 DELETE FROM [linnworks].[lw].[final_orderitems]
 WHERE source = 'linnworks';
-
 -- Step 2: Insert transformed data
 INSERT INTO [linnworks].[lw].[final_orderitems] (
     Final_sku,
     final_quantity,
     final_price,
     final_cost,
+    DiscountPerUnit,
     TotalFinalPrice,
     TotalFinalCost,
+    TotalDiscount,
     order_date,
     final_date,
     kitsku,
@@ -39,6 +40,11 @@ SELECT DISTINCT
             THEN OI.SubItemUnitCost
         ELSE OI.ParentUnitCost
     END,
+     CASE 
+        WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' AND OI.SubItemUnitCost <> 0
+            THEN OI.SubItemDiscountPerUnit
+        ELSE OI.ParentDiscountPerUnit
+    END,
     CASE 
         WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' 
              AND OI.SubItemSellPrice <> 0 AND OI.SubItemQty <> 0
@@ -50,6 +56,11 @@ SELECT DISTINCT
              AND OI.SubItemUnitCost <> 0 AND OI.SubItemQty <> 0
             THEN (OI.SubItemUnitCost * OI.SubItemQty)
         ELSE (OI.ParentUnitCost * OI.ParentQty)
+    END,
+     CASE 
+        WHEN OI.SubItemSKU IS NOT NULL AND LTRIM(RTRIM(OI.SubItemSKU)) <> '' AND OI.SubItemUnitCost <> 0
+            THEN (OI.SubItemDiscountPerUnit * OI.SubItemQty)
+        ELSE (OI.ParentDiscountPerUnit * OI.ParentQty)
     END,
     O.dReceivedDate,
     O.dProcessedOn, -- final_date

@@ -2,23 +2,26 @@ config {
   type: "incremental",
   uniqueKey: ["unique_id"],
   schema: "lw",
-  name: "final_table", // This is the name of your clean table
+  name: "final_table",
   bigquery: {
     partitionBy: "DATE(date_updated)"
   }
 }
 
--- Step 1: Clean the incoming batch from 'test55'
-SELECT * EXCEPT(row_num)
+SELECT
+  * EXCEPT(row_num)
 FROM (
-  SELECT *,
-         ROW_NUMBER() OVER(
-           PARTITION BY unique_id 
-           ORDER BY date_updated DESC
-         ) as row_num
-  FROM ${ref("lw_orderitems")}
+  SELECT
+    *,
+    ROW_NUMBER() OVER (
+      PARTITION BY unique_id 
+      ORDER BY date_updated DESC
+    ) AS row_num
+  FROM
+    ${ref("lw_orderitems")}
   
-  -- Step 2: Only grab rows newer than what's already in the final table
+  -- Use incremental filter to process only new records
   ${when(incremental(), `WHERE date_updated > (SELECT MAX(date_updated) FROM ${self()})` )}
 )
-WHERE row_num = 1
+WHERE
+  row_num = 1

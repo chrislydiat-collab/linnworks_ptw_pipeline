@@ -19,7 +19,7 @@ FROM (
   FROM ${ref("lw_orderitems")}
   
   -- Step 2: Only grab rows newer than what's already in the final table
-  ${when(incremental(), `WHERE date_updated > (SELECT MAX(updated_at) FROM ${self()})` )}
+  ${when(incremental(), `WHERE date_updated > (SELECT MAX(date_updated) FROM ${self()})` )}
 )
 WHERE row_num = 1
 

@@ -22,8 +22,3 @@ FROM (
   ${when(incremental(), `WHERE date_updated > (SELECT MAX(date_updated) FROM ${self()})` )}
 )
 WHERE row_num = 1
-
--- Step 3: Optional cleanup of the staging table
-post_operations {
-  TRUNCATE TABLE ${ref("lw_orderitems")}
-}

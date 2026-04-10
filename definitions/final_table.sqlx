@@ -1,11 +1,17 @@
 config {
-  type: "table",
+  type: "operations",
+  hasOutput: true,
   schema: "lw",
-  name: "final_table",
-  bigquery: {
-    partitionBy: "DATE(date_updated)"
-  }
+  name: "final_table"
 }
+
+-- Step 1: Kill the old table that has the 'wrong' or 'conflicting' spec
+DROP TABLE IF EXISTS ${self()};
+
+-- Step 2: Rebuild it exactly how you want it
+CREATE TABLE ${self()}
+PARTITION BY DATE(date_updated)
+AS
 SELECT
   * EXCEPT(row_num)
 FROM (
@@ -19,4 +25,4 @@ FROM (
     ${ref("lw_orderitems")}
 )
 WHERE
-  row_num = 1
+  row_num = 1;

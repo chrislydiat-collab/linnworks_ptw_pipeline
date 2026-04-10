@@ -25,7 +25,7 @@ FROM (
 
   -- CRITICAL: During a Full Refresh, this block is ignored, 
   -- allowing the code to see and fix old duplicates.
-  ${when(incremental(), `WHERE date_updated >= (SELECT MAX(date_updated) FROM ${self()})` )}
+ -- ${when(incremental(), `WHERE date_updated >= (SELECT MAX(date_updated) FROM ${self()})` )}
 )
 WHERE
   row_num = 1

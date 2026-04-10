@@ -15,13 +15,17 @@ FROM (
     *,
     ROW_NUMBER() OVER (
       PARTITION BY unique_id 
+      -- date_updated DESC finds the newest
+      -- To handle 100% identical rows, the window function 
+      -- automatically picks one and assigns it row_num 1.
       ORDER BY date_updated DESC
     ) AS row_num
   FROM
     ${ref("lw_orderitems")}
-  
-  -- Use incremental filter to process only new records
-  ${when(incremental(), `WHERE date_updated > (SELECT MAX(date_updated) FROM ${self()})` )}
+
+  -- CRITICAL: During a Full Refresh, this block is ignored, 
+  -- allowing the code to see and fix old duplicates.
+  ${when(incremental(), `WHERE date_updated >= (SELECT MAX(date_updated) FROM ${self()})` )}
 )
 WHERE
   row_num = 1

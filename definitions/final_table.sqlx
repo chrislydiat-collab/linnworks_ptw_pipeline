@@ -1,0 +1,29 @@
+config {
+  type: "incremental",
+  uniqueKey: ["unique_id"],
+  schema: "lw",
+  name: "final_table", // This is the name of your clean table
+  bigquery: {
+    partitionBy: "DATE(updated_at)"
+  }
+}
+
+-- Step 1: Clean the incoming batch from 'test55'
+SELECT * EXCEPT(row_num)
+FROM (
+  SELECT *,
+         ROW_NUMBER() OVER(
+           PARTITION BY unique_id 
+           ORDER BY updated_at DESC
+         ) as row_num
+  FROM ${ref("lw_orderitems")}
+  
+  -- Step 2: Only grab rows newer than what's already in the final table
+  ${when(incremental(), `WHERE updated_at > (SELECT MAX(updated_at) FROM ${self()})` )}
+)
+WHERE row_num = 1
+
+-- Step 3: Optional cleanup of the staging table
+post_operations {
+  TRUNCATE TABLE ${ref("lw_orderitems")}
+}

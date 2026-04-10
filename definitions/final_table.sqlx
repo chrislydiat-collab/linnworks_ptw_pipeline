@@ -4,7 +4,7 @@ config {
   schema: "lw",
   name: "final_table", // This is the name of your clean table
   bigquery: {
-    partitionBy: "DATE(updated_at)"
+    partitionBy: "DATE(updated_date)"
   }
 }
 

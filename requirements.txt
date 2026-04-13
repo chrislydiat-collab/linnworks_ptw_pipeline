@@ -1,0 +1,12 @@
+pandas==2.1.0
+linnworks-api-python==0.2.5
+cloud-sql-python-connector==0.9.3
+google-cloud-sql-connector==0.9.3  
+flask==3.0.3
+requests==2.32.5
+pymssql==2.3.8
+google-cloud-storage==3.4.1
+gunicorn==23.0.0
+
+
+

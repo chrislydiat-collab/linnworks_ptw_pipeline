@@ -1,0 +1,26 @@
+config {
+  type: "incremental",
+  uniqueKey: ["unique_id"],
+  schema: "lw",           // Your output dataset (different from source!)
+  name: "lw_orderitems",  // Your output table name
+  bigquery: {
+    partitionBy: "DATE(date_updated)"
+  }
+}
+
+SELECT
+  * EXCEPT(row_num)
+FROM (
+  SELECT
+    *,
+    ROW_NUMBER() OVER (
+      PARTITION BY unique_id 
+      ORDER BY date_updated DESC
+    ) AS row_num
+  FROM
+    ${ref("staging", "orderitemsnew")} -- Explicitly ref the staging source
+
+  ${when(incremental(), `WHERE date_updated >= (SELECT MAX(date_updated) FROM ${self()})` )}
+)
+WHERE
+  row_num = 1

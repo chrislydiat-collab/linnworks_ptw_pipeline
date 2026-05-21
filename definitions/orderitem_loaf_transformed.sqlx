@@ -1,0 +1,165 @@
+config {
+  type: "incremental",
+  schema: "lw_production",       
+  name: "orderitem_loaf_transformed",
+  uniqueKey: ["unique_id"],        
+  bigquery: {
+    partitionBy: "DATE(date_updated)" 
+  }
+}
+
+WITH DailyStockCTE AS (
+  SELECT
+    sub.fkStockItemId,
+    sub.ChangeDate,
+    sub.StockNow AS EOD_Qty,
+    sub.StockValue AS EOD_Value
+  FROM (
+    SELECT
+      fkStockItemId,
+      DATE(StockChangeDateTime) AS ChangeDate,
+      StockNow,
+      StockValue,
+      ROW_NUMBER() OVER (
+        PARTITION BY fkStockItemId, DATE(StockChangeDateTime)
+        ORDER BY StockChangeDateTime DESC
+      ) AS LatestRank
+    FROM 
+      ${ref("stockchange_loaf_clean")}
+    WHERE 
+      fkStockLocationId = '50a547a0-aeeb-446d-ad8c-fb408f6197a1'
+      AND DATE(StockChangeDateTime) >= DATE_SUB(CURRENT_DATE(), INTERVAL 13 DAY)
+      AND DATE(StockChangeDateTime) <= DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
+      AND StockNow > 0 
+      AND StockValue >= 0 
+  ) sub
+  WHERE sub.LatestRank = 1
+),
+
+LatestStockFallback AS (
+  SELECT 
+    fkStockItemId, 
+    EOD_Value, 
+    EOD_Qty
+  FROM (
+    SELECT 
+      fkStockItemId, 
+      StockValue AS EOD_Value, 
+      StockNow AS EOD_Qty,
+      ROW_NUMBER() OVER (PARTITION BY fkStockItemId ORDER BY StockChangeDateTime DESC) as Rnk
+    FROM 
+      ${ref("stockchange_loaf_clean")}
+    WHERE 
+      fkStockLocationId = '50a547a0-aeeb-446d-ad8c-fb408f6197a1'
+      AND DATE(StockChangeDateTime) <= DATE_SUB(CURRENT_DATE(), INTERVAL 13 DAY)
+      AND StockNow > 0 
+      AND StockValue >= 0 
+  ) f
+  WHERE Rnk = 1
+),
+
+RawBaseJoin AS (
+  SELECT
+    oi1.rowid AS unique_id,
+    ord.nOrderId AS wms_order_id,
+    oi1.fkOrderId AS wms_process_id,
+    oi1.ChannelSKU AS sku,
+    oi1.fkCompositeParentRowId,
+    oi1.fkStockItemId,
+    oi1.nQty AS shipped_qty,
+    oi1.SalesTax AS oi1_SalesTax,
+    oi1.TaxRate AS oi1_TaxRate,
+    oi1.fPricePerUnit AS oi1_Price,
+    oi1.LineDiscount AS oi1_Disc,
+    oi1.DispatchStockUnitCost,
+    oi2.ChannelSKU AS oi2_SKU,
+    oi2.nQty AS oi2_Qty,
+    oi2.SalesTax AS oi2_SalesTax,
+    oi2.TaxRate AS oi2_TaxRate,
+    oi2.fPricePerUnit AS oi2_Price,
+    oi2.LineDiscount AS oi2_Disc,
+    ord.bProcessed,
+    ord.HoldorCancel,
+    COALESCE(ord.DateStamp, ord.dProcessedOn, ord.dReceievedDate) AS date_updated_raw,
+    ds.EOD_Value AS ds_EOD_Value,
+    ds.EOD_Qty AS ds_EOD_Qty,
+    fb.EOD_Value AS fb_EOD_Value,
+    fb.EOD_Qty AS fb_EOD_Qty,
+    ROW_NUMBER() OVER (
+      PARTITION BY oi1.rowid 
+      ORDER BY ds.ChangeDate DESC
+    ) AS sc_rn
+  FROM 
+    ${ref("orderitem_loaf_clean")} AS oi1
+  LEFT JOIN 
+    ${ref("orderitem_loaf_clean")} AS oi2 ON oi1.fkCompositeParentRowId = oi2.rowid
+  LEFT JOIN 
+    ${ref("order_loaf_clean")} ord ON oi1.fkOrderId = ord.pkOrderId
+  LEFT JOIN 
+    DailyStockCTE ds ON oi1.fkStockItemId = ds.fkStockItemId 
+    AND ds.ChangeDate <= DATE(COALESCE(ord.dProcessedOn, ord.dReceievedDate))
+  LEFT JOIN 
+    LatestStockFallback fb ON oi1.fkStockItemId = fb.fkStockItemId
+  WHERE 
+    (SAFE_CAST(oi1.kitleader AS INT64) = 0 OR oi1.kitleader IS NULL)
+    ${when(incremental(), `AND COALESCE(ord.DateStamp, ord.dProcessedOn, ord.dReceievedDate) > (SELECT MAX(date_updated) FROM ${self()})` )}
+),
+
+RawBase AS (
+  SELECT 
+    * EXCEPT(sc_rn, ds_EOD_Value, ds_EOD_Qty, fb_EOD_Value, fb_EOD_Qty),
+    IFNULL((COALESCE(ds_EOD_Value, fb_EOD_Value) / NULLIF(COALESCE(ds_EOD_Qty, fb_EOD_Qty), 0)), 0) AS ScUnitValue
+  FROM 
+    RawBaseJoin
+  WHERE 
+    sc_rn = 1
+),
+
+FilteredBase AS (
+  SELECT 
+    * FROM 
+    RawBase
+  WHERE 
+    ScUnitValue >= 0 
+),
+
+WeightedData AS (
+  SELECT 
+    *,
+    NULLIF(SUM(ScUnitValue) OVER(PARTITION BY fkCompositeParentRowId), 0) AS SumScUnitValue
+  FROM 
+    FilteredBase
+)
+
+SELECT
+  unique_id,
+  wms_process_id,
+  CASE WHEN fkCompositeParentRowId IS NULL THEN sku ELSE oi2_SKU END AS sold_sku,
+  CASE
+    WHEN fkCompositeParentRowId IS NULL THEN COALESCE(shipped_qty, 0)
+    ELSE COALESCE(oi2_Qty, 0) * (COALESCE(ScUnitValue, 0) / NULLIF(COALESCE(SumScUnitValue, 0), 0))
+  END AS sold_qty,
+  sku AS shipped_sku,
+  shipped_qty,
+  ROUND(CASE
+    WHEN fkCompositeParentRowId IS NULL THEN COALESCE(oi1_SalesTax, 0)
+    ELSE COALESCE(oi2_SalesTax, 0) * (COALESCE(ScUnitValue, 0) / NULLIF(COALESCE(SumScUnitValue, 0), 0))
+  END, 2) AS total_tax,
+  ROUND(CASE
+    WHEN fkCompositeParentRowId IS NULL 
+      THEN (100 + COALESCE(oi1_TaxRate, 0)) * COALESCE(oi1_Price, 0) * COALESCE(oi1_Disc, 0) * COALESCE(shipped_qty, 0) / (100 * 100)
+    ELSE (COALESCE(oi2_Qty, 0) * (100 + COALESCE(oi2_TaxRate, 0)) * COALESCE(oi2_Price, 0) * COALESCE(oi2_Disc, 0) / (100 * 100)) * (COALESCE(ScUnitValue, 0) / NULLIF(COALESCE(SumScUnitValue, 0), 0))
+  END, 2) AS total_discount,
+  ROUND(CASE
+    WHEN fkCompositeParentRowId IS NULL 
+      THEN (COALESCE(shipped_qty, 0) * COALESCE(oi1_Price, 0)) - (COALESCE(shipped_qty, 0) * COALESCE(oi1_Price, 0) * COALESCE(oi1_Disc, 0) / 100)
+    ELSE (COALESCE(oi2_Qty, 0) * (COALESCE(oi2_Price, 0) - (COALESCE(oi2_Price, 0) * COALESCE(oi2_Disc, 0) / 100))) * (COALESCE(ScUnitValue, 0) / NULLIF(COALESCE(SumScUnitValue, 0), 0))
+  END, 2) AS total_net,
+  ROUND(CASE
+    WHEN bProcessed = TRUE AND HoldorCancel = FALSE THEN COALESCE(DispatchStockUnitCost, 0) * COALESCE(shipped_qty, 0)
+    ELSE COALESCE(ScUnitValue, 0) * COALESCE(shipped_qty, 0)
+  END, 2) AS total_cost,
+  'Linnworks' AS source,
+  date_updated_raw AS date_updated
+FROM 
+  WeightedData

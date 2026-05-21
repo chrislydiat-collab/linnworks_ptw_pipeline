@@ -2,9 +2,9 @@ config {
   type: "operations",
   schema: "staging_dataform", 
   name: "orderitem_loaf_clean",
-  hasOutput: true,
-  tags: ["force_refresh_1"]
+  hasOutput: true
 }
+
 CREATE OR REPLACE EXTERNAL TABLE ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw
 (
   rowid STRING,
@@ -14,7 +14,7 @@ CREATE OR REPLACE EXTERNAL TABLE ${ctx.database()}.${ctx.schema()}.${ctx.name()}
   ChannelSKU STRING,
   nQty INT64,
   SalesTax FLOAT64,
-  TaxRate FLOAT64,            
+  TaxRate FLOAT64,
   fPricePerUnit FLOAT64,
   LineDiscount FLOAT64,
   DispatchStockUnitCost FLOAT64,
@@ -23,9 +23,10 @@ CREATE OR REPLACE EXTERNAL TABLE ${ctx.database()}.${ctx.schema()}.${ctx.name()}
 )
 OPTIONS (
   format = 'CSV', 
-  uris = ['gs://run-sources-ptw-data-europe-north1/lw_data_batch/orderitem_loaf/*'],
+  uris = ["gs://run-sources-ptw-data-europe-north1/lw_data_batch/orderitem_loaf/*"],
   skip_leading_rows = 1 
 );
+
 CREATE OR REPLACE TABLE ${self()} AS
 SELECT 
   * FROM 
@@ -35,3 +36,5 @@ QUALIFY
     PARTITION BY rowid 
     ORDER BY date_updated DESC   
   ) = 1;
+
+DROP TABLE IF EXISTS ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw;

@@ -1,0 +1,43 @@
+config {
+  type: "operations",
+  schema: "staging_dataform", 
+  name: "stockchange_loaf_clean",
+  hasOutput: true              
+}
+
+-- 1. Create the external table with a hardcoded schema mapping
+CREATE OR REPLACE EXTERNAL TABLE ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw (
+  fkStockItemId STRING,
+  fkStockLocationId STRING,
+  StockChangeDateTime TIMESTAMP,
+  StockNow INT64,
+  StockValue NUMERIC
+)
+OPTIONS (
+  format = 'CSV', 
+  uris = ['gs://run-sources-ptw-data-europe-north1/lw_data_batch/stockchange_loaf/*'],
+  skip_leading_rows = 1 
+);
+
+-- 2. AUTOMATIC TOGGLE BASED ON TABLE METADATA
+IF (
+  SELECT row_count 
+  FROM `${ctx.database()}.${ctx.schema()}.__TABLES__` 
+  WHERE table_id = '${ctx.name()}'
+) IS NULL THEN
+  
+  -- FULL REFRESH MODE
+  CREATE OR REPLACE TABLE ${self()} AS
+  SELECT * FROM ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw;
+
+ELSE
+  
+  -- INCREMENTAL MODE: Clean standard SQL (No more EXECUTE IMMEDIATE needed!)
+  INSERT INTO ${self()}
+  SELECT * FROM ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw
+  WHERE StockChangeDateTime > (SELECT MAX(StockChangeDateTime) FROM ${self()});
+
+END IF;
+
+-- 3. Clean up the external table reference
+DROP TABLE IF EXISTS ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw;

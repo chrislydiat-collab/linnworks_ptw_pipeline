@@ -1,0 +1,29 @@
+config {
+  type: "operations",
+  schema: "staging_dataform", 
+  name: "order_loaf_clean",
+  hasOutput: true              
+}
+
+-- 1. Create a standard external table pointing to your GCS files
+CREATE OR REPLACE EXTERNAL TABLE ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw
+OPTIONS (
+  format = 'CSV', 
+  uris = ['gs://run-sources-ptw-data-europe-north1/lw_data_batch/order_loaf/*'],
+  skip_leading_rows = 1 
+);
+
+-- 2. Deduplicate the data and write it directly to your production table
+CREATE OR REPLACE TABLE ${self()} AS
+SELECT 
+  * 
+FROM 
+  ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw
+QUALIFY 
+  ROW_NUMBER() OVER (
+    PARTITION BY pkOrderId 
+    ORDER BY date_updated DESC   
+  ) = 1;
+
+-- 3. Clean up the external table reference so it doesn't clutter your dataset
+DROP TABLE IF EXISTS ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw;

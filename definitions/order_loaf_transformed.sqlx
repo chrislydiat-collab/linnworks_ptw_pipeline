@@ -1,0 +1,91 @@
+config {
+  type: "incremental",
+  schema: "lw_production",       
+  name: "order_loaf_transformed",
+  uniqueKey: ["wms_process_id"],        
+  bigquery: {
+    partitionBy: "DATE(date_updated)" 
+  }
+}
+
+WITH RawData AS (
+  SELECT
+    pkOrderId AS wms_process_id,
+    nOrderId AS wms_process_num,
+    dReceievedDate AS date_sold,
+    dDispatchBy AS date_due,
+    dProcessedOn AS date_shipped,
+    DateStamp AS date_cancelled,
+    nStatus AS status,
+    'Linnworks' AS source,
+    Source AS subsource,
+    FulfillmentLocationId AS location, 
+    REPLACE(ReferenceNum, 'MAGENTO', '') AS order_id,
+    
+    -- Generate unique order_id copies
+    CASE
+      WHEN ROW_NUMBER() OVER(PARTITION BY REPLACE(ReferenceNum, 'MAGENTO', '') ORDER BY REPLACE(ReferenceNum, 'MAGENTO', '')) = 1 
+      THEN REPLACE(ReferenceNum, 'MAGENTO', '') 
+      ELSE CONCAT(REPLACE(ReferenceNum, 'MAGENTO', ''), '_Copy_', CAST(ROW_NUMBER() OVER(PARTITION BY REPLACE(ReferenceNum, 'MAGENTO', '') ORDER BY REPLACE(ReferenceNum, 'MAGENTO', '')) AS STRING))
+    END AS order_id_nuller,
+    
+    PostalServiceName AS ship_service,
+    PostageCostExTax AS postage_net,
+    fPostageCost - PostageCostExTax AS postage_tax,
+
+    -- CALCULATED POSTAGE COST
+    CASE 
+      -- 1. DPD LOGIC (Evaluated First)
+      WHEN PostalServiceName LIKE '%DPD%' THEN
+        (CASE
+          -- Scottish Highlands 
+          WHEN REGEXP_CONTAINS(cPostCode, r'^(AB3[6-8]|FK1[7-9]|FK2[0-1]|IV[0-9]|KW[0-9]|PA2[0-9]|PA[3-4][0-9]|PA[6-7][0-9]|PA80|PH19|PH2[0-6]|PH[3-4][0-9]|PH50|HS|ZE)') THEN 10
+          -- Northern Ireland
+          WHEN STARTS_WITH(cPostCode, 'BT') THEN 8
+          -- Offshore Islands
+          WHEN REGEXP_CONTAINS(cPostCode, r'^(IM|JE|GY)') THEN 12.5
+          -- Standard Mainland
+          ELSE 3.44
+        END) 
+        * (CASE WHEN DateStamp IS NOT NULL OR FulfillmentLocationId <> '50a547a0-aeeb-446d-ad8c-fb408f6197a1' THEN 0 WHEN postage_count = 0 THEN 1 ELSE postage_count END)
+
+      -- 2. NON-DPD / NON-CLICK & COLLECT LOGIC (DHL Model)
+      WHEN PostalServiceName <> 'Click and Collect' THEN
+        CASE 
+          -- Surcharge Zones (Flat 12.41 per package - no tiered discount)
+          WHEN REGEXP_CONTAINS(cPostCode, r'^(AB3[1-8]|AB4[0-9]|AB5[0-6]|IV[0-9]|KW[0-9]|PA2[0-9]|PA[3-4][0-9]|PA[6-8][0-9]|PH[4-9]|PH[1-4][0-9]|HS|ZE|KA2[7-8]|BT|IM|JE|GY)') 
+          THEN 12.41 * (CASE WHEN DateStamp IS NOT NULL OR FulfillmentLocationId <> '50a547a0-aeeb-446d-ad8c-fb408f6197a1' THEN 0 WHEN postage_count = 0 THEN 1 ELSE postage_count END)
+
+          -- Standard Mainland (Tiered Pricing: 3.75 for 1st, 2.58 for others)
+          ELSE 
+            (CASE WHEN DateStamp IS NOT NULL OR FulfillmentLocationId <> '50a547a0-aeeb-446d-ad8c-fb408f6197a1' THEN 0 ELSE 3.75 END) 
+            + 
+            (CASE 
+              WHEN DateStamp IS NOT NULL OR FulfillmentLocationId <> '50a547a0-aeeb-446d-ad8c-fb408f6197a1' THEN 0
+              WHEN postage_count > 1 THEN (postage_count - 1) * 2.58 
+              ELSE 0 
+            END)
+        END
+
+      ELSE 0 -- Default for Click and Collect or unknown services
+    END AS postage_cost,
+
+    CASE
+      WHEN DateStamp IS NOT NULL THEN 0 
+      WHEN FulfillmentLocationId <> '50a547a0-aeeb-446d-ad8c-fb408f6197a1' THEN 0
+      WHEN postage_count = 0 THEN 1 
+      ELSE postage_count 
+    END AS calculated_postage_count,
+
+    date_updated
+
+  FROM ${ref("order_loaf_clean")}
+  WHERE 1=1
+  -- Incremental load handling based on the already existing date_updated field
+  ${when(incremental(), `AND date_updated > (SELECT MAX(date_updated) FROM ${self()})` )}
+)
+
+SELECT *
+FROM RawData
+-- Deduplicate: Retain only the most recent updated duplicate per wms_process_id
+QUALIFY ROW_NUMBER() OVER (PARTITION BY wms_process_id ORDER BY date_updated DESC) = 1

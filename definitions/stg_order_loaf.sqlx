@@ -7,6 +7,27 @@ config {
 
 -- 1. Create a standard external table pointing to your GCS files
 CREATE OR REPLACE EXTERNAL TABLE ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw
+(
+  pkOrderId STRING,
+  nOrderId INT64,
+  ReferenceNum STRING,
+  nStatus INT64,
+  `Source` STRING,
+  bProcessed BOOLEAN,
+  HoldorCancel BOOLEAN,
+  dReceievedDate TIMESTAMP,
+  dDispatchBy TIMESTAMP,
+  dProcessedOn TIMESTAMP,
+  cPostCode STRING,
+  fkPostalServiceId STRING,
+  FulfillmentLocationId STRING,
+  PostalServiceName STRING,
+  postage_count INT64,
+  PostageCostExTax FLOAT64,
+  fPostageCost FLOAT64,
+  DateStamp TIMESTAMP,
+  date_updated TIMESTAMP
+)
 OPTIONS (
   format = 'CSV', 
   uris = ['gs://run-sources-ptw-data-europe-north1/lw_data_batch/order_loaf/*'],

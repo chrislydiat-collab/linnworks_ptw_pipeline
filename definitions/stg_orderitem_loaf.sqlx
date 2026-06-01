@@ -28,11 +28,33 @@ OPTIONS (
 );
 
 CREATE OR REPLACE TABLE ${self()} AS
+WITH order_max_dates AS (
+  SELECT 
+    *,
+    MAX(date_updated) OVER(PARTITION BY fkOrderId) AS latest_order_update
+  FROM 
+    ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw
+)
 SELECT 
-  * FROM 
-  ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw
+  rowid,
+  fkOrderId,
+  fkCompositeParentRowId,
+  fkStockItemId,
+  ChannelSKU,
+  nQty,
+  SalesTax,
+  TaxRate,
+  fPricePerUnit,
+  LineDiscount,
+  DispatchStockUnitCost,
+  kitleader,
+  date_updated
+FROM 
+  order_max_dates
+WHERE 
+  date_updated = latest_order_update
 QUALIFY 
-  ROW_NUMBER() OVER (
+   ROW_NUMBER() OVER (
     PARTITION BY rowid 
     ORDER BY date_updated DESC   
   ) = 1;

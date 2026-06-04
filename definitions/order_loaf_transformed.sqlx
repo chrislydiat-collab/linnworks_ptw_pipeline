@@ -50,7 +50,7 @@ WITH RawData AS (
         * (CASE WHEN DateStamp IS NOT NULL OR FulfillmentLocationId <> '50a547a0-aeeb-446d-ad8c-fb408f6197a1' THEN 0 WHEN postage_count = 0 THEN 1 ELSE postage_count END)
 
       -- 2. NON-DPD / NON-CLICK & COLLECT LOGIC (DHL Model)
-      WHEN PostalServiceName <> 'Click and Collect' THEN
+      WHEN PostalServiceName <> 'click and collect' THEN
         CASE 
           -- Surcharge Zones (Flat 12.41 per package - no tiered discount)
           WHEN REGEXP_CONTAINS(cPostCode, r'^(AB3[1-8]|AB4[0-9]|AB5[0-6]|IV[0-9]|KW[0-9]|PA2[0-9]|PA[3-4][0-9]|PA[6-8][0-9]|PH[4-9]|PH[1-4][0-9]|HS|ZE|KA2[7-8]|BT|IM|JE|GY)') 

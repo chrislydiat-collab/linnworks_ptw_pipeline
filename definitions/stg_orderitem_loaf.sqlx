@@ -28,10 +28,11 @@ OPTIONS (
 );
 
 CREATE OR REPLACE TABLE ${self()} AS
-WITH order_max_dates AS (
+WITH order_latest_file AS (
   SELECT 
     *,
-    MAX(date_updated) OVER(PARTITION BY fkOrderId) AS latest_order_update
+    -- 1. Finds the most recent file this specific order appeared in
+    MAX(_FILE_NAME) OVER(PARTITION BY fkOrderId) AS latest_file_for_order
   FROM 
     ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw
 )
@@ -50,10 +51,12 @@ SELECT
   kitleader,
   date_updated
 FROM 
-  order_max_dates
+  order_latest_file
 WHERE 
-  date_updated = latest_order_update
+  -- 2. Keep ONLY the records from the latest file the order was in
+  _FILE_NAME = latest_file_for_order
 QUALIFY 
+   -- 3. Deduplicate rowids just in case the newest file has duplicates
    ROW_NUMBER() OVER (
     PARTITION BY rowid 
     ORDER BY date_updated DESC   

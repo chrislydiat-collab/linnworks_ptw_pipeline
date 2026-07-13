@@ -31,7 +31,8 @@ CREATE OR REPLACE TABLE ${self()} AS
 WITH order_latest_file AS (
   SELECT 
     *,
-    -- 1. Finds the most recent file this specific order appeared in
+    -- Explicitly alias the hidden pseudo-column so the rest of the query can see it
+    _FILE_NAME AS file_name,
     MAX(_FILE_NAME) OVER(PARTITION BY fkOrderId) AS latest_file_for_order
   FROM 
     ${ctx.database()}.${ctx.schema()}.${ctx.name()}_raw
@@ -53,10 +54,9 @@ SELECT
 FROM 
   order_latest_file
 WHERE 
-  -- 2. Keep ONLY the records from the latest file the order was in
-  _FILE_NAME = latest_file_for_order
+  -- Now file_name is cleanly recognized here
+  file_name = latest_file_for_order
 QUALIFY 
-   -- 3. Deduplicate rowids just in case the newest file has duplicates
    ROW_NUMBER() OVER (
     PARTITION BY rowid 
     ORDER BY date_updated DESC   

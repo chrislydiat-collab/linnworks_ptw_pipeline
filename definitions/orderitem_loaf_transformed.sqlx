@@ -8,6 +8,16 @@ config {
   }
 }
 
+pre_operations {
+  ${when(incremental(), `
+    DELETE FROM ${self()} 
+    WHERE wms_process_id IN (
+      SELECT fkOrderId FROM ${ref("orderitem_loaf_clean")}
+      WHERE date_updated >= DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL 28 DAY)
+    )
+  `)}
+}
+
 WITH DailyStockCTE AS (
   SELECT
     sub.fkStockItemId,
@@ -72,6 +82,7 @@ RawBaseJoin AS (
     oi1.fPricePerUnit AS oi1_Price,
     oi1.LineDiscount AS oi1_Disc,
     oi1.DispatchStockUnitCost,
+    oi1.date_updated,
     oi2.ChannelSKU AS oi2_SKU,
     oi2.nQty AS oi2_Qty,
     oi2.SalesTax AS oi2_SalesTax,
@@ -102,7 +113,7 @@ RawBaseJoin AS (
     LatestStockFallback fb ON oi1.fkStockItemId = fb.fkStockItemId
   WHERE 
     (SAFE_CAST(oi1.kitleader AS INT64) = 0 OR oi1.kitleader IS NULL)
-    ${when(incremental(), `AND COALESCE(ord.DateStamp, ord.dProcessedOn, ord.dReceievedDate) > (SELECT MAX(date_updated) FROM ${self()})` )}
+    ${when(incremental(), `AND oi1.date_updated >= DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL 28 DAY)` )}
 ),
 
 RawBase AS (

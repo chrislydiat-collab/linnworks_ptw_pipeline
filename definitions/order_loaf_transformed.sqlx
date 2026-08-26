@@ -21,14 +21,6 @@ WITH RawData AS (
     Source AS subsource,
     FulfillmentLocationId AS location, 
     REPLACE(ReferenceNum, 'MAGENTO', '') AS order_id,
-    
-    -- Generate unique order_id copies
-    CASE
-      WHEN ROW_NUMBER() OVER(PARTITION BY REPLACE(ReferenceNum, 'MAGENTO', '') ORDER BY REPLACE(ReferenceNum, 'MAGENTO', '')) = 1 
-      THEN REPLACE(ReferenceNum, 'MAGENTO', '') 
-      ELSE CONCAT(REPLACE(ReferenceNum, 'MAGENTO', ''), '_Copy_', CAST(ROW_NUMBER() OVER(PARTITION BY REPLACE(ReferenceNum, 'MAGENTO', '') ORDER BY REPLACE(ReferenceNum, 'MAGENTO', '')) AS STRING))
-    END AS order_id_nuller,
-    
     PostalServiceName AS ship_service,
     PostageCostExTax AS postage_net,
     fPostageCost - PostageCostExTax AS postage_tax,

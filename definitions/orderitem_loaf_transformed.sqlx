@@ -168,7 +168,7 @@ SELECT
   END, 2) AS total_net,
   ROUND(CASE
     WHEN bProcessed = TRUE AND HoldorCancel = FALSE THEN 0
-    ELSE bProcessed = TRUE AND HoldorCancel = FALSE THEN COALESCE(DispatchStockUnitCost, 0) * COALESCE(shipped_qty, 0)
+    WHEN bProcessed = TRUE AND HoldorCancel = FALSE THEN COALESCE(DispatchStockUnitCost, 0) * COALESCE(shipped_qty, 0)
     ELSE COALESCE(ScUnitValue, 0) * COALESCE(shipped_qty, 0)
   END, 2) AS total_cost,
   'Linnworks' AS source,

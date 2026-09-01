@@ -92,6 +92,7 @@ RawBaseJoin AS (
     ord.bProcessed,
     ord.HoldorCancel,
     COALESCE(ord.DateStamp, ord.dProcessedOn, ord.dReceievedDate) AS date_updated_raw,
+    REPLACE(ord.ReferenceNum, 'MAGENTO', '') AS order_id,
     ds.EOD_Value AS ds_EOD_Value,
     ds.EOD_Qty AS ds_EOD_Qty,
     fb.EOD_Value AS fb_EOD_Value,
@@ -167,7 +168,7 @@ SELECT
     ELSE (COALESCE(oi2_Qty, 0) * (COALESCE(oi2_Price, 0) - (COALESCE(oi2_Price, 0) * COALESCE(oi2_Disc, 0) / 100))) * (COALESCE(ScUnitValue, 0) / NULLIF(COALESCE(SumScUnitValue, 0), 0))
   END, 2) AS total_net,
   ROUND(CASE
-  --  WHEN bProcessed = TRUE AND HoldorCancel = TRUE THEN 0
+    WHEN order_id = 'MERGED' THEN 0
     WHEN bProcessed = TRUE AND HoldorCancel = FALSE THEN COALESCE(DispatchStockUnitCost, 0) * COALESCE(shipped_qty, 0)
     ELSE COALESCE(ScUnitValue, 0) * COALESCE(shipped_qty, 0)
   END, 2) AS total_cost,

@@ -169,7 +169,7 @@ SELECT
     ELSE (COALESCE(oi2_Qty, 0) * (COALESCE(oi2_Price, 0) - (COALESCE(oi2_Price, 0) * COALESCE(oi2_Disc, 0) / 100))) * (COALESCE(ScUnitValue, 0) / NULLIF(COALESCE(SumScUnitValue, 0), 0))
   END, 2) AS total_net,
   ROUND(CASE
-    WHEN nstatus = 1 AND subsource = 'DIRECT' THEN 0
+    WHEN nstatus = 0 AND subsource = 'DIRECT' THEN 0
     WHEN bProcessed = TRUE AND HoldorCancel = FALSE THEN COALESCE(DispatchStockUnitCost, 0) * COALESCE(shipped_qty, 0)
     ELSE COALESCE(ScUnitValue, 0) * COALESCE(shipped_qty, 0)
   END, 2) AS total_cost,
